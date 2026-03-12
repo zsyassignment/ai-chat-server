@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Chat Server</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="title-block">
+        <p class="eyebrow">Realtime dialog</p>
+        <h1>AI Chat Studio</h1>
+        <p class="lede">History-aware prompts served from <code>/api/chat</code> with client-side threading.</p>
+      </div>
+      <div class="actions">
+        <button id="theme-toggle" class="ghost">Toggle theme</button>
+      </div>
+    </header>
+
+    <main class="chat-shell">
+      <div class="chat-log" id="chat-log">
+        <div class="empty">No messages yet. Start typing.</div>
+      </div>
+      <div class="meta" id="meta">Conversation is empty.</div>
+    </main>
+
+    <footer class="composer">
+      <div class="composer-inner">
+        <textarea id="message" rows="3" placeholder="Message the AI..."></textarea>
+        <div class="composer-actions">
+          <div class="hint">Ctrl/Cmd + Enter to send · Shift + Enter for a new line</div>
+          <button id="send">Send</button>
+        </div>
+      </div>
+    </footer>
+  </div>
+  <script src="/main.js"></script>
+</body>
+</html>

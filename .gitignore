@@ -1,0 +1,20 @@
+# 编译生成的中间目录和最终输出目录
+build/
+bin/
+lib/
+
+# C/C++ 编译产生的中间文件和各种库文件
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.exe
+*.out
+*.log
+
+# 编辑器和系统的隐藏缓存文件
+.vscode/
+.idea/
+.DS_Store
+*.swp
