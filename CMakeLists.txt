@@ -51,6 +51,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # 注意：确保你的 nlohmann/json.hpp 放在了这个 include 目录下
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
+# 递归添加 include 子目录，兼容分层后的头文件布局
+file(GLOB_RECURSE PROJECT_INCLUDE_DIRS LIST_DIRECTORIES true ${CMAKE_SOURCE_DIR}/include/*)
+foreach(dir ${PROJECT_INCLUDE_DIRS})
+    if(IS_DIRECTORY ${dir})
+        include_directories(${dir})
+    endif()
+endforeach()
+
 # 设置输出目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)

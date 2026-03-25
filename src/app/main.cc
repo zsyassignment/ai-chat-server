@@ -82,7 +82,7 @@ int main(int argc,char *argv[]) {
 
     //第三步启动底层网络模块
     EventLoop loop;
-    InetAddress addr(8080);
+    InetAddress addr(9856);
     HttpServer server(&loop, addr, "HttpServer", executor, aiClient, lfu, pickStaticRoot);
     server.setThreadNum(3);
     server.start();

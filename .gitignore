@@ -12,6 +12,7 @@ lib/
 *.exe
 *.out
 *.log
+*.pdf
 
 # 编辑器和系统的隐藏缓存文件
 .vscode/
