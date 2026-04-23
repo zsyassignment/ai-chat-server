@@ -4,7 +4,7 @@
 set -e
 
 # sudo apt-get update
-# sudo apt-get install -y build-essential cmake libcurl4-openssl-dev
+# sudo apt-get install -y build-essential cmake libcurl4-openssl-dev default-libmysqlclient-dev libssl-dev
 
 echo "mkdir build..."
 cd "$(dirname "$0")"

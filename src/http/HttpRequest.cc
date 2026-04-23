@@ -1,6 +1,7 @@
 #include "HttpRequest.h"
 
 #include <algorithm>
+#include <cctype>
 #include <strings.h>
 
 namespace {
@@ -16,6 +17,16 @@ inline std::string trim(const std::string& s)
     auto end = s.find_last_not_of(" \t\r\n");
 
     return s.substr(start, end - start + 1);
+}
+
+inline std::string normalizeHeaderKey(const std::string& key)
+{
+    std::string normalized = trim(key);
+    std::transform(normalized.begin(),
+                   normalized.end(),
+                   normalized.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return normalized;
 }
 }
 
@@ -65,14 +76,14 @@ const char* HttpRequest::methodString() const
 void HttpRequest::addHeader(const std::string& key, const std::string& value) 
 {
     //key和value分别是请求头的字段名和字段值，去除两端空白字符后存入headers_中
-    headers_[key] = trim(value);
+    headers_[normalizeHeaderKey(key)] = trim(value);
 }
 
 std::string HttpRequest::getHeader(const std::string& field) const 
 {
     //如果直接写headers_[field]，如果field不存在会自动创建一个空字符串并返回引用，这样就无法区分field不存在和field存在但值为空的情况，所以使用find方法查找
     //而且const函数不能修改成员变量，所以不能使用operator[]，只能使用find方法查找
-    auto it = headers_.find(field);
+    auto it = headers_.find(normalizeHeaderKey(field));
     if (it != headers_.end()) {
         return it->second;
     }
@@ -94,7 +105,7 @@ void HttpRequest::swap(HttpRequest& other)
 //处理http长连接/短连接
 bool HttpRequest::keepAlive() const 
 {
-    auto connection = getHeader("Connection");
+    auto connection = getHeader("connection");
     if (!connection.empty()) 
     {
         //如果有connection字段，判断是否为close，如果是close则返回false，否则返回true

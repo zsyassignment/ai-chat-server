@@ -1,6 +1,7 @@
 #include <string>
 
 #include <Logger.h>
+#include <cstdlib>
 #include <sys/stat.h>
 #include <algorithm>
 #include <limits.h>
@@ -10,8 +11,10 @@
 #include <vector>
 
 #include "AsyncLogging.h"
+#include "ChatPersistenceService.h"
 #include "HttpServer.h"
 #include "LFU.h"
+#include "MySqlConnectionPool.h"
 #include "TaskExecutor.h"
 #include "openai.hpp"
 #include "memoryPool.h"
@@ -48,15 +51,58 @@ int main(int argc,char *argv[]) {
     const int CACHE_CAPACITY = 128;
     KamaCache::KLfuCache<std::string, std::string> lfu(CACHE_CAPACITY);
 
-    // 业务线程池，避免阻塞网络 I/O 线程
-    size_t workerNum = std::max<size_t>(2, std::thread::hardware_concurrency());
-    TaskExecutor executor(workerNum);
-    executor.start();
+    auto getEnvOr = [](const char* key, const std::string& fallback) {
+        const char* value = std::getenv(key);
+        return (value != nullptr && *value != '\0') ? std::string(value) : fallback;
+    };
+    auto getEnvUnsigned = [](const char* key, size_t fallback) {
+        const char* value = std::getenv(key);
+        if (value == nullptr || *value == '\0') {
+            return fallback;
+        }
+        char* end = nullptr;
+        unsigned long parsed = std::strtoul(value, &end, 10);
+        if (end == value || *end != '\0') {
+            return fallback;
+        }
+        return static_cast<size_t>(parsed);
+    };
+
+    // 业务线程池与数据库线程池，统一承接阻塞任务，避免卡住 Reactor 的 I/O 线程
+    size_t bizWorkerNum = std::max<size_t>(2, std::thread::hardware_concurrency());
+    size_t dbWorkerNum = std::max<size_t>(2, getEnvUnsigned("DB_WORKER_THREADS", std::max<size_t>(2, bizWorkerNum / 2)));
+    TaskExecutor bizExecutor(bizWorkerNum);
+    TaskExecutor dbExecutor(dbWorkerNum);
+    bizExecutor.start();
+    dbExecutor.start();
 
     // OpenAI 客户端，API Key 从环境变量 OPENAI_API_KEY 读取
     OpenAIClient aiClient;
-    aiClient.setModel("deepseek-chat");
+    // aiClient.setModel("deepseek-chat");
+    // aiClient.setModel("GLM-4.7-Flash");
+    aiClient.setModel(getEnvOr("MODEL_NAME", "GLM-4.7-Flash"));
+    LOG_INFO << "Using OpenAI model: " << aiClient.model_;
     // 如果需要切换到 OpenAI 官方，可设置环境变量 OPENAI_BASE_URL=https://api.openai.com/v1/chat/completions 并选择对应模型
+
+    MySqlConnectionPool::Config dbConfig;
+    dbConfig.host = getEnvOr("MYSQL_HOST", dbConfig.host);
+    dbConfig.port = static_cast<unsigned int>(getEnvUnsigned("MYSQL_PORT", dbConfig.port));
+    dbConfig.user = getEnvOr("MYSQL_USER", dbConfig.user);
+    dbConfig.password = getEnvOr("MYSQL_PASSWORD", dbConfig.password);
+    dbConfig.database = getEnvOr("MYSQL_DATABASE", dbConfig.database);
+    dbConfig.charset = getEnvOr("MYSQL_CHARSET", dbConfig.charset);
+    dbConfig.poolSize = getEnvUnsigned("MYSQL_POOL_SIZE", std::max<size_t>(4, dbWorkerNum * 2));
+    dbConfig.connectTimeoutSeconds =
+        static_cast<unsigned int>(getEnvUnsigned("MYSQL_CONNECT_TIMEOUT", dbConfig.connectTimeoutSeconds));
+
+    ChatPersistenceService persistence(dbConfig);
+    if (!persistence.initialize()) {
+        LOG_ERROR << "MySQL persistence disabled: " << persistence.initError();
+    } else {
+        LOG_INFO << "MySQL persistence ready on " << dbConfig.host << ":" << dbConfig.port
+                 << " database=" << dbConfig.database
+                 << " pool=" << dbConfig.poolSize;
+    }
 
     // 选择静态资源目录：优先根据可执行文件位置推导
     auto pickStaticRoot = []() {
@@ -83,7 +129,7 @@ int main(int argc,char *argv[]) {
     //第三步启动底层网络模块
     EventLoop loop;
     InetAddress addr(9856);
-    HttpServer server(&loop, addr, "HttpServer", executor, aiClient, lfu, pickStaticRoot);
+    HttpServer server(&loop, addr, "HttpServer", bizExecutor, dbExecutor, aiClient, lfu, persistence, pickStaticRoot);
     server.setThreadNum(3);
     server.start();
 
@@ -91,6 +137,7 @@ int main(int argc,char *argv[]) {
     loop.loop();
     std::cout << "================================================Stop Web Server=================================================" << std::endl;
 
-    executor.stop();
+    dbExecutor.stop();
+    bizExecutor.stop();
     log.stop();
 }

@@ -1,41 +1,103 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Chat Server</title>
+  <title>AI Chat</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <div class="page">
-    <header class="topbar">
-      <div class="title-block">
-        <p class="eyebrow">Realtime dialog</p>
-        <h1>AI Chat Studio</h1>
-        <p class="lede">History-aware prompts served from <code>/api/chat</code> with client-side threading.</p>
-      </div>
-      <div class="actions">
-        <button id="theme-toggle" class="ghost">Toggle theme</button>
-      </div>
-    </header>
+  <div class="app-shell">
+    <section class="auth-view" id="auth-view">
+      <div class="auth-card">
+        <div class="auth-card-top">
+          <div class="brand-lockup">
+            <div class="brand-mark">AI</div>
+            <div class="brand-text">
+              <h1>AI Chat</h1>
+              <p>登录或注册后开始对话</p>
+            </div>
+          </div>
+          <button class="ghost compact" data-theme-toggle>切换主题</button>
+        </div>
 
-    <main class="chat-shell">
-      <div class="chat-log" id="chat-log">
-        <div class="empty">No messages yet. Start typing.</div>
-      </div>
-      <div class="meta" id="meta">Conversation is empty.</div>
-    </main>
-
-    <footer class="composer">
-      <div class="composer-inner">
-        <textarea id="message" rows="3" placeholder="Message the AI..."></textarea>
-        <div class="composer-actions">
-          <div class="hint">Ctrl/Cmd + Enter to send · Shift + Enter for a new line</div>
-          <button id="send">Send</button>
+        <div class="auth-form">
+          <div class="field-group">
+            <label for="username">用户名</label>
+            <input id="username" type="text" autocomplete="username" placeholder="输入用户名">
+          </div>
+          <div class="field-group">
+            <label for="password">密码</label>
+            <input id="password" type="password" autocomplete="current-password" placeholder="至少 6 位">
+          </div>
+          <div class="auth-actions">
+            <button id="login">登录</button>
+            <button id="register" class="ghost">注册</button>
+          </div>
+          <div class="login-status" id="login-status">登录或注册后开始对话。</div>
         </div>
       </div>
-    </footer>
+    </section>
+
+    <section class="workspace is-hidden" id="app-view">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="brand-lockup compact-lockup">
+            <div class="brand-mark small">AI</div>
+            <div class="brand-text">
+              <h2>AI Chat</h2>
+              <p>对话</p>
+            </div>
+          </div>
+          <button id="new-conversation" class="compact">新建对话</button>
+        </div>
+
+        <div class="history-panel">
+          <div class="sidebar-label">会话</div>
+          <div class="history-list" id="history-list">
+            <div class="history-empty">还没有会话</div>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="account-card">
+            <div class="account-name" id="user-pill">未登录</div>
+            <div class="account-meta" id="account-meta">未登录</div>
+          </div>
+          <div class="sidebar-actions">
+            <button class="ghost compact" data-theme-toggle>切换主题</button>
+            <button id="logout" class="ghost compact">退出</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="chat-workspace">
+        <header class="chat-header">
+          <div class="chat-heading">
+            <h1 id="conversation-title">新对话</h1>
+            <div class="meta" id="meta">准备就绪</div>
+          </div>
+        </header>
+
+        <div class="chat-stage">
+          <div class="chat-log" id="chat-log">
+            <div class="empty">从左侧选择会话，或直接开始新对话</div>
+          </div>
+        </div>
+
+        <footer class="composer">
+          <div class="composer-inner">
+            <textarea id="message" rows="1" placeholder="输入消息..." disabled></textarea>
+            <div class="composer-actions">
+              <div class="hint">Enter 发送 · Shift + Enter 换行</div>
+              <button id="send" disabled>发送</button>
+            </div>
+          </div>
+        </footer>
+      </main>
+    </section>
   </div>
+
   <script src="/main.js"></script>
 </body>
 </html>

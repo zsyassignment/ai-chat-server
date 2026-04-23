@@ -58,12 +58,16 @@ const char* HttpResponse::reasonPhrase(HttpStatusCode code)
 {
     switch (code) 
     {
+        case HttpStatusCode::k201Created: return "Created";
         case HttpStatusCode::k200Ok: return "OK";
         case HttpStatusCode::k400BadRequest: return "Bad Request";
+        case HttpStatusCode::k401Unauthorized: return "Unauthorized";
         case HttpStatusCode::k404NotFound: return "Not Found";
+        case HttpStatusCode::k409Conflict: return "Conflict";
         case HttpStatusCode::k405MethodNotAllowed: return "Method Not Allowed";
         case HttpStatusCode::k413PayloadTooLarge: return "Payload Too Large";
         case HttpStatusCode::k500InternalServerError: return "Internal Server Error";
+        case HttpStatusCode::k503ServiceUnavailable: return "Service Unavailable";
         default: return "Unknown";
     }
 }

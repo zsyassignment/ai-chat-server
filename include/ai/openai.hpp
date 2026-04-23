@@ -27,9 +27,9 @@ public:
     std::optional<std::string> chatCompletionStream(
         const std::vector<ChatMessage>& messages,
         const std::function<void(const std::string&)>& onDelta) const;
-
+        std::string model_;
 private:
     std::string apiKey_;
-    std::string model_;
+    
     std::string baseUrl_;
 };

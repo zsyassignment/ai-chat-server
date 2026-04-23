@@ -19,3 +19,5 @@ lib/
 .idea/
 .DS_Store
 *.swp
+env.local.sh
+.pdf
