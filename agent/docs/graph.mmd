@@ -1,0 +1,39 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+    start([START]) --> load_context
+    load_context --> contextualize_question
+    contextualize_question --> route_intent
+    route_intent -- chat --> direct_chat
+    route_intent -- web_search --> prepare_query
+    route_intent -- reminder --> reminder
+    route_intent -- knowledge_qa --> prepare_query
+    prepare_query --> retrieve --> grade_retrieval --> decide_evidence
+    decide_evidence -- local sufficient --> generate_grounded
+    decide_evidence -- weak first pass --> rewrite_query --> retrieve
+    decide_evidence -- web needed --> web_search --> generate_grounded
+    decide_evidence -- local-only/unavailable --> generate_grounded
+    route_intent -- create_plan --> draft_plan --> approve_plan --> persist_plan
+    route_intent -- quiz --> quiz
+    route_intent -- progress --> progress
+    route_intent -- update_progress --> update_progress
+    route_intent -- deep_research/Skill --> plan_research
+    plan_research --> research_worker[research_worker x N via Send]
+    research_worker --> research_reason
+    research_reason -- tool_calls --> research_act
+    research_act --> research_critic
+    research_critic -- continue --> research_reason
+    research_critic -- sufficient/budget --> synthesize_research
+    research_reason -- no tool_calls --> synthesize_research
+    direct_chat --> reflect
+    reminder --> reflect
+    generate_grounded --> reflect
+    persist_plan --> reflect
+    quiz --> reflect
+    progress --> reflect
+    update_progress --> reflect
+    synthesize_research --> reflect
+    reflect --> finalize --> finish([END])

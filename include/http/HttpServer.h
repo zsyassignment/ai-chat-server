@@ -12,6 +12,7 @@
 #include "Timestamp.h"
 #include "openai.hpp"
 #include "LFU.h"
+#include "AgentClient.h"
 
 class HttpServer {
 public:
@@ -20,6 +21,7 @@ public:
                const std::string& name,
                TaskExecutor& executor,
                OpenAIClient& aiClient,
+               AgentClient& agentClient,
                KamaCache::KLfuCache<std::string, std::string>& cache,
                const std::string& staticDir);
 
@@ -32,6 +34,10 @@ private:
 
     void handleRequest(const TcpConnectionPtr& conn, HttpRequest& req);
     void handleChatAsync(const TcpConnectionPtr& conn, const HttpRequest& req, bool closeConnection);
+    void handleAgentStreamAsync(const TcpConnectionPtr& conn, const HttpRequest& req,
+                                bool closeConnection, const std::string& upstreamPath);
+    void handleAgentJsonAsync(const TcpConnectionPtr& conn, const HttpRequest& req, bool closeConnection,
+                              const std::string& method, const std::string& internalPath);
     void sendResponse(const TcpConnectionPtr& conn, HttpResponse& resp);
     void sendError(const TcpConnectionPtr& conn, HttpStatusCode code, const std::string& msg);
 
@@ -43,6 +49,7 @@ private:
     StaticFileHandler staticHandler_;
     TaskExecutor& executor_;
     OpenAIClient& aiClient_;
+    AgentClient& agentClient_;
     KamaCache::KLfuCache<std::string, std::string>& cache_;
 
     std::unordered_map<std::string, HttpContext> contexts_;

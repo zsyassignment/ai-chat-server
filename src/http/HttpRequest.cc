@@ -37,6 +37,10 @@ bool HttpRequest::setMethod(const char* start, const char* end)
     {
         method_ = Method::kPut;
     }
+    else if (m == "PATCH")
+    {
+        method_ = Method::kPatch;
+    }
     else if (m == "DELETE")
     {
         method_ = Method::kDelete;
@@ -57,6 +61,7 @@ const char* HttpRequest::methodString() const
         case Method::kGet: return "GET";
         case Method::kPost: return "POST";
         case Method::kPut: return "PUT";
+        case Method::kPatch: return "PATCH";
         case Method::kDelete: return "DELETE";
         default: return "INVALID";
     }
@@ -72,9 +77,10 @@ std::string HttpRequest::getHeader(const std::string& field) const
 {
     //如果直接写headers_[field]，如果field不存在会自动创建一个空字符串并返回引用，这样就无法区分field不存在和field存在但值为空的情况，所以使用find方法查找
     //而且const函数不能修改成员变量，所以不能使用operator[]，只能使用find方法查找
-    auto it = headers_.find(field);
-    if (it != headers_.end()) {
-        return it->second;
+    for (const auto& header : headers_) {
+        if (strcasecmp(header.first.c_str(), field.c_str()) == 0) {
+            return header.second;
+        }
     }
     return "";
 }

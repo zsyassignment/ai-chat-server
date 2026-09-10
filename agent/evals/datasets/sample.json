@@ -1,0 +1,14 @@
+[
+  {
+    "id": "agent-loop-01",
+    "question": "根据资料说明 Observation 在 Agent Loop 中的作用",
+    "expected_document": "agent-basics.md",
+    "expected_terms": ["工具结果", "下一轮决策"]
+  },
+  {
+    "id": "rag-01",
+    "question": "根据资料说明 RAG 的基本流程",
+    "expected_document": "agent-basics.md",
+    "expected_terms": ["文档", "检索", "生成"]
+  }
+]

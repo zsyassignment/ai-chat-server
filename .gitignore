@@ -19,3 +19,17 @@ lib/
 .idea/
 .DS_Store
 *.swp
+# Python learning-agent runtime artifacts
+__pycache__/
+*.py[cod]
+*.db
+*.db-shm
+*.db-wal
+.env
+
+# Embedded LangGraph Agent runtime
+agent/.venv/
+agent/.pytest_cache/
+agent/**/__pycache__/
+data/learningflow/
+qdrant_storage/

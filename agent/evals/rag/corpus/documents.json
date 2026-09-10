@@ -1,0 +1,42 @@
+[
+  {
+    "filename": "agent-loop.md",
+    "content": "# Agent Loop\nAgent Loop 通常包含感知、规划、行动和观察。Observation 会把工具执行结果反馈给下一轮推理，使模型能够纠错并决定继续调用工具还是结束。循环必须设置最大迭代次数、工具调用预算和超时，避免无限循环。ReAct 将 Reasoning 与 Action 交错执行。"
+  },
+  {
+    "filename": "langgraph.md",
+    "content": "# LangGraph\nLangGraph 使用 StateGraph 表达有状态工作流，Conditional Edges 根据状态选择下一节点。Checkpoint 按 thread_id 持久化图状态，interrupt 与 Command(resume) 支持人工审批后恢复。Send 可动态创建并行分支，并通过 reducer 合并结果。"
+  },
+  {
+    "filename": "rag-pipeline.md",
+    "content": "# RAG Pipeline\nRAG 文档先由 RecursiveCharacterTextSplitter 递归切分，再进行向量化。查询时可使用稠密向量和 BM25 双路召回，通过 RRF 融合排名，再由 Cross-Encoder 精排。若证据不足，可以重写查询并再次检索，最终回答必须引用来源。"
+  },
+  {
+    "filename": "hybrid-search.md",
+    "content": "# Hybrid Search\n稠密向量擅长语义匹配，倒排索引擅长精确关键词。RRF 使用排名倒数融合异构结果，不直接比较向量相似度与 BM25 原始分数。Cross-Encoder 同时编码问题与文档对，精度通常更高，但推理成本也更高。"
+  },
+  {
+    "filename": "mcp.md",
+    "content": "# MCP\nModel Context Protocol 让 Agent 通过统一协议发现并调用外部能力。MCP Server 可以发布 Tools、Resources 和 Prompts。stdio 适合桌面客户端拉起本地进程，Streamable HTTP 适合网络服务。ToolAnnotations 可描述只读、幂等、破坏性与开放世界属性。"
+  },
+  {
+    "filename": "memory.md",
+    "content": "# Conversation Memory\n长对话可以组合最近消息滑动窗口、结构化滚动摘要和长期语义记忆。原始消息应永久保留，摘要需要记录版本和覆盖消息范围。指代消解应发生在意图识别之前，把依赖上下文的半句话重写成独立问题。Token Budget 用于限制注入模型的上下文。"
+  },
+  {
+    "filename": "skills.md",
+    "content": "# Declarative Skills\n声明式 Skill 描述领域方法、触发条件、工作流步骤、工具白名单、资源和输出 Schema。普通用户上传的 Skill 不应执行任意 Python 代码。Skill 负责如何完成任务，Tool 提供实际执行能力，MCP 用于跨应用发布能力。"
+  },
+  {
+    "filename": "scheduling.md",
+    "content": "# Scheduling\n持久化提醒由 SQLite 保存业务状态，APScheduler 执行 DateTrigger 或 CronTrigger。应用重启时恢复 scheduled 任务，过期任务可以补偿执行。一次性任务触发前应原子领取，避免重复通知。IANA 时区可以正确处理不同时区。"
+  },
+  {
+    "filename": "evaluation.md",
+    "content": "# RAG Evaluation\n检索评测常用 Recall@K、Precision@K、MRR 和 NDCG。生成评测关注 Faithfulness、Answer Relevance、Citation Accuracy 和 Refusal Accuracy。评测集应该区分开发集和测试集，并按事实题、同义改写、多跳、无答案与上下文依赖分桶。"
+  },
+  {
+    "filename": "security.md",
+    "content": "# Agent Security\n上传文件需要限制大小、类型并防止 ZIP 路径穿越。外部内容属于不可信数据，不能覆盖系统指令。多用户知识库必须按 user_id 隔离。写工具需要权限检查、审计和幂等设计，工具执行还应包含超时、重试和熔断。"
+  }
+]

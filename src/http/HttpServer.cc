@@ -59,12 +59,14 @@ HttpServer::HttpServer(EventLoop* loop,
                        const std::string& name,
                        TaskExecutor& executor,
                        OpenAIClient& aiClient,
+                       AgentClient& agentClient,
                        KamaCache::KLfuCache<std::string, std::string>& cache,
                        const std::string& staticDir)
     : server_(loop, addr, name)
     , staticHandler_(staticDir)
     , executor_(executor)
     , aiClient_(aiClient)
+    , agentClient_(agentClient)
     , cache_(cache) {
     server_.setConnectionCallback(
         //placeholders::_1是占位符，表示这个位置的参数会在调用时传入。std::bind会将TcpServer::onConnection成员函数与当前对象this绑定起来，并且指定当onConnection被调用时，传入的参数会被正确地转发到占位符的位置。
@@ -109,7 +111,7 @@ void HttpServer::onMessage(const TcpConnectionPtr& conn, Buffer* buf, Timestamp 
     }
 
     //现在假设只能处理4MB的请求体，超过就拒绝，防止恶意攻击占满内存资源
-    const size_t kMaxBodySize = 4 * 1024 * 1024; // 4MB safeguard
+    const size_t kMaxBodySize = 9 * 1024 * 1024; // Agent uploads are capped at 8 MB.
     if (ctx.request().body().size() > kMaxBodySize) 
     {
         sendError(conn, HttpStatusCode::k413PayloadTooLarge, "Payload Too Large");
@@ -123,22 +125,50 @@ void HttpServer::onMessage(const TcpConnectionPtr& conn, Buffer* buf, Timestamp 
     }
 }
 
-void HttpServer::handleRequest(const TcpConnectionPtr& conn, HttpRequest& req) 
+void HttpServer::handleRequest(const TcpConnectionPtr& conn, HttpRequest& req)
 {
-    bool close = !req.keepAlive();
+    const bool close = !req.keepAlive();
 
-    // 特例：如果是 POST /api/chat 就走专门的异步处理流程，其他请求走常规路由
-    if (req.method() == HttpRequest::Method::kPost && req.path() == "/api/chat") 
+    // A single natural-language entry: LangGraph decides chat/RAG/research/tools.
+    if (req.method() == HttpRequest::Method::kPost &&
+        (req.path() == "/api/chat" || req.path() == "/api/chat/stream"))
+    {
+        handleAgentStreamAsync(conn, req, close, "/api/chat/stream");
+        return;
+    }
+
+    if (req.method() == HttpRequest::Method::kPost && req.path() == "/api/runs/resume")
+    {
+        handleAgentStreamAsync(conn, req, close, "/api/runs/resume");
+        return;
+    }
+
+    // The original native C++ model path remains available for diagnostics,
+    // but the browser does not expose a manual chat/agent mode switch.
+    if (req.method() == HttpRequest::Method::kPost && req.path() == "/api/chat/direct")
     {
         handleChatAsync(conn, req, close);
         return;
     }
 
-    if (req.method() == HttpRequest::Method::kGet || req.method() == HttpRequest::Method::kPost) 
+    // Transparent same-origin proxy for documents, plans, reminders, Skills,
+    // notifications, health, traces, and thread state. Bodies stay opaque so
+    // multipart upload boundaries are preserved.
+    if (req.path().rfind("/api/", 0) == 0)
+    {
+        std::string upstreamPath = req.path();
+        if (!req.query().empty()) upstreamPath += "?" + req.query();
+        handleAgentJsonAsync(conn, req, close, req.methodString(), upstreamPath);
+        return;
+    }
+
+    if (req.method() == HttpRequest::Method::kGet ||
+        req.method() == HttpRequest::Method::kPost ||
+        req.method() == HttpRequest::Method::kPatch ||
+        req.method() == HttpRequest::Method::kDelete)
     {
         HttpResponse resp(close);
-        //路由解析
-        if (!router_.route(req, resp)) 
+        if (!router_.route(req, resp))
         {
             resp.setStatusCode(HttpStatusCode::k404NotFound);
             resp.setStatusMessage("Not Found");
@@ -146,11 +176,84 @@ void HttpServer::handleRequest(const TcpConnectionPtr& conn, HttpRequest& req)
             resp.setBody("404 Not Found");
         }
         sendResponse(conn, resp);
-    } 
-    else 
+    }
+    else
     {
         sendError(conn, HttpStatusCode::k405MethodNotAllowed, "Method Not Allowed");
     }
+}
+
+void HttpServer::handleAgentStreamAsync(const TcpConnectionPtr& conn,
+                                        const HttpRequest& req,
+                                        bool closeConnection,
+                                        const std::string& upstreamPath)
+{
+    EventLoop* ioLoop = conn->getLoop();
+    const std::string body = req.body();
+    const std::string contentType = req.getHeader("Content-Type");
+    ioLoop->queueInLoop([conn, closeConnection]() {
+        std::string headers =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/event-stream; charset=utf-8\r\n"
+            "Cache-Control: no-cache\r\n"
+            "X-Accel-Buffering: no\r\n"
+            "Transfer-Encoding: chunked\r\n";
+        headers += closeConnection ? "Connection: close\r\n\r\n" : "Connection: keep-alive\r\n\r\n";
+        conn->send(headers);
+        conn->send(toChunk(makeSseEvent("status", nlohmann::json{{"message", "正在连接学习 Agent..."}})));
+    });
+
+    executor_.submit([this, conn, ioLoop, body, contentType, upstreamPath, closeConnection]() {
+        std::string error;
+        const bool ok = agentClient_.streamRequest(
+            upstreamPath, body, contentType,
+            [ioLoop, conn](const std::string& bytes) {
+                if (bytes.empty()) return;
+                ioLoop->queueInLoop([conn, bytes]() { conn->send(toChunk(bytes)); });
+            },
+            &error);
+
+        ioLoop->queueInLoop([conn, ok, error, closeConnection]() {
+            if (!ok) {
+                conn->send(toChunk(makeSseEvent(
+                    "error", nlohmann::json{{"message", "学习 Agent 服务不可用: " + error}})));
+            }
+            conn->send("0\r\n\r\n");
+            if (closeConnection) conn->shutdown();
+        });
+    });
+}
+
+void HttpServer::handleAgentJsonAsync(const TcpConnectionPtr& conn,
+                                      const HttpRequest& req,
+                                      bool closeConnection,
+                                      const std::string& method,
+                                      const std::string& internalPath)
+{
+    EventLoop* ioLoop = conn->getLoop();
+    const std::string body = req.body();
+    const std::string contentType = req.getHeader("Content-Type");
+    executor_.submit([this, conn, ioLoop, body, contentType, closeConnection, method, internalPath]() {
+        long upstreamStatus = 0;
+        std::string error;
+        const auto response = agentClient_.requestJson(
+            method, internalPath, body, contentType, &upstreamStatus, &error);
+        ioLoop->queueInLoop([conn, response, upstreamStatus, error, closeConnection]() {
+            HttpResponse reply(closeConnection);
+            reply.setContentType("application/json; charset=utf-8");
+            if (!response.has_value()) {
+                reply.setStatusCode(HttpStatusCode::k500InternalServerError);
+                reply.setBody(nlohmann::json{{"error", "learning agent unavailable: " + error}}.dump());
+            } else {
+                reply.setStatusCode(upstreamStatus >= 400 ? HttpStatusCode::k400BadRequest : HttpStatusCode::k200Ok);
+                reply.setBody(*response);
+            }
+            Buffer output;
+            reply.appendToBuffer(&output);
+            conn->send(output.retrieveAllAsString());
+            if (reply.closeConnection()) conn->shutdown();
+        });
+    });
 }
 
 void HttpServer::handleChatAsync(const TcpConnectionPtr& conn, const HttpRequest& req, bool closeConnection) 
@@ -218,7 +321,10 @@ void HttpServer::handleChatAsync(const TcpConnectionPtr& conn, const HttpRequest
                     {
                         if (item.contains("role") && item.contains("content") && item["role"].is_string() && item["content"].is_string()) 
                         {
-                            messages.push_back({item["role"].get<std::string>(), item["content"].get<std::string>()});
+                            const std::string role = item["role"].get<std::string>();
+                            if (role == "user" || role == "assistant") {
+                                messages.push_back({role, item["content"].get<std::string>()});
+                            }
                         }
                     }
                 }

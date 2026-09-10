@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["summary", "contributions", "method", "experiments", "limitations", "sources"],
+  "properties": {
+    "summary": {"type": "string"},
+    "contributions": {"type": "array", "items": {"type": "string"}},
+    "method": {"type": "string"},
+    "experiments": {"type": "string"},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "sources": {"type": "array", "items": {"type": "string"}}
+  }
+}

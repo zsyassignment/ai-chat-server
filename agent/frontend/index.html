@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LearningFlow Agent</title>
+  <link rel="stylesheet" href="/ui/style.css" />
+</head>
+<body>
+  <main class="layout">
+    <aside>
+      <p class="eyebrow">LANGGRAPH WORKFLOW</p>
+      <h1>LearningFlow</h1>
+      <p class="sub">一个入口，自动选择对话、知识库、联网搜索与 MCP 工具</p>
+      <section>
+        <h2>私人资料</h2>
+        <input id="file" type="file" accept=".txt,.md,.pdf" />
+        <button id="upload">上传并索引</button>
+        <div id="docs" class="list">暂无资料</div>
+      </section>
+      <section>
+        <h2>当前计划</h2>
+        <div id="plan" class="list">尚未创建</div>
+      </section>
+      <section>
+        <h2>目标提醒</h2>
+        <input id="reminder-input" placeholder="如：明天20:00提醒我复习第一天" />
+        <button id="create-reminder">创建提醒</button>
+        <div id="reminders" class="list">暂无提醒</div>
+        <div id="notifications" class="list"></div>
+      </section>
+      <section>
+        <h2>Agent 工具</h2>
+        <div id="capabilities" class="list">正在检测...</div>
+      </section>
+      <section>
+        <h2>声明式 Skills</h2>
+        <input id="skill-file" type="file" accept=".zip" />
+        <button id="upload-skill">上传 Skill 包</button>
+        <div id="skills" class="list">暂无 Skill</div>
+      </section>
+    </aside>
+    <section class="chat">
+      <header><span id="status">Ready</span><code id="thread"></code></header>
+      <div id="messages" class="messages">
+        <div class="welcome"><b>直接说你想做什么，无需切换模式</b><br/>“解释 Agent Loop，并参考我的资料”<br/>“联网查一下 LangGraph 最近有什么更新”<br/>“深入研究 RAG 检索质量”<br/><small>还支持持久化目标提醒，并可由外部 Agent 通过 MCP 创建。</small></div>
+      </div>
+      <div id="approval" class="approval hidden">
+        <div id="approval-text"></div>
+        <button data-approved="true">确认保存</button>
+        <button data-approved="false" class="secondary">取消</button>
+      </div>
+      <footer>
+        <textarea id="input" placeholder="输入问题，Ctrl/Cmd + Enter 发送"></textarea>
+        <button id="send">发送</button>
+      </footer>
+    </section>
+  </main>
+  <script src="/ui/app.js"></script>
+</body>
+</html>

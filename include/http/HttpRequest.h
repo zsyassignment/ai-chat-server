@@ -6,7 +6,7 @@
 class HttpRequest {
 public:
     //enum class是C++11引入的强类型枚举，使用时需要加上枚举类型名，避免了普通枚举的命名冲突问题，同时也提供了更好的类型安全性
-    enum class Method { kInvalid, kGet, kPost, kPut, kDelete };
+    enum class Method { kInvalid, kGet, kPost, kPut, kPatch, kDelete };
     enum class Version { kUnknown, kHttp10, kHttp11 };
 
     using Headers = std::map<std::string, std::string>;

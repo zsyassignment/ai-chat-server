@@ -1,8 +1,10 @@
 #include <string>
 
 #include <Logger.h>
+#include <curl/curl.h>
 #include <sys/stat.h>
 #include <algorithm>
+#include <cstdlib>
 #include <limits.h>
 #include <sstream>
 #include <thread>
@@ -10,6 +12,7 @@
 #include <vector>
 
 #include "AsyncLogging.h"
+#include "AgentClient.h"
 #include "HttpServer.h"
 #include "LFU.h"
 #include "TaskExecutor.h"
@@ -31,6 +34,10 @@ AsyncLogging * getAsyncLog(){
     }
 }
 int main(int argc,char *argv[]) {
+    if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+        std::cerr << "Failed to initialize libcurl" << std::endl;
+        return 1;
+    }
     //第一步启动日志，双缓冲异步写入磁盘.
     //创建一个文件夹
     const std::string LogDir="logs";
@@ -55,7 +62,9 @@ int main(int argc,char *argv[]) {
 
     // OpenAI 客户端，API Key 从环境变量 OPENAI_API_KEY 读取
     OpenAIClient aiClient;
-    aiClient.setModel("deepseek-chat");
+    const char* configuredModel = std::getenv("OPENAI_MODEL");
+    aiClient.setModel(configuredModel && *configuredModel ? configuredModel : "deepseek-chat");
+    AgentClient agentClient;
     // 如果需要切换到 OpenAI 官方，可设置环境变量 OPENAI_BASE_URL=https://api.openai.com/v1/chat/completions 并选择对应模型
 
     // 选择静态资源目录：优先根据可执行文件位置推导
@@ -83,7 +92,7 @@ int main(int argc,char *argv[]) {
     //第三步启动底层网络模块
     EventLoop loop;
     InetAddress addr(9856);
-    HttpServer server(&loop, addr, "HttpServer", executor, aiClient, lfu, pickStaticRoot);
+    HttpServer server(&loop, addr, "HttpServer", executor, aiClient, agentClient, lfu, pickStaticRoot);
     server.setThreadNum(3);
     server.start();
 
@@ -93,4 +102,5 @@ int main(int argc,char *argv[]) {
 
     executor.stop();
     log.stop();
+    curl_global_cleanup();
 }

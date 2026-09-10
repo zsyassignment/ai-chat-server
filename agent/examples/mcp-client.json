@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "learningflow-agent": {
+      "command": "/cloudide/workspace/langgraph-learning-agent/scripts/start-mcp.sh"
+    }
+  }
+}

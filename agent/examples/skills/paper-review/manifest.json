@@ -1,0 +1,14 @@
+{
+  "name": "paper-review",
+  "version": "1.0.0",
+  "description": "Evidence-based paper review and related-work comparison",
+  "triggers": ["论文精读", "分析论文", "paper review"],
+  "allowed_tools": ["search_private_knowledge", "search_web"],
+  "workflow": [
+    {"id": "extract", "instruction": "Extract the research question, method, contributions, experiments, and limitations.", "tool": "search_private_knowledge"},
+    {"id": "compare", "instruction": "Find recent related work and compare claims.", "tool": "search_web"},
+    {"id": "report", "instruction": "Produce the requested report schema with source citations."}
+  ],
+  "resources": ["resources/checklist.md"],
+  "output_schema": "schemas/report.json"
+}
