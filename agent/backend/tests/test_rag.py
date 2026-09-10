@@ -51,8 +51,47 @@ def test_rrf_weights_can_make_keyword_precision_primary():
     fused = reciprocal_rank_fusion({
         "vector": [base("vector-only", "vector")],
         "keyword": [base("keyword-only", "keyword")],
-    }, rrf_k=60, weights={"vector": 0.1, "keyword": 1.0})
+    }, rrf_k=60, weights={"vector": 0.03, "keyword": 1.0})
     assert [item["chunk_id"] for item in fused] == ["keyword-only", "vector-only"]
+
+
+def test_document_chunk_limit_preserves_rank_and_diversity():
+    from app.rag.store import limit_chunks_per_document
+    hits = [
+        {"chunk_id": "a1", "document_id": "a"},
+        {"chunk_id": "a2", "document_id": "a"},
+        {"chunk_id": "b1", "document_id": "b"},
+        {"chunk_id": "c1", "document_id": "c"},
+    ]
+    assert [item["chunk_id"] for item in limit_chunks_per_document(hits, 1, 3)] == ["a1", "b1", "c1"]
+    assert [item["chunk_id"] for item in limit_chunks_per_document(hits, 2, 3)] == ["a1", "a2", "b1"]
+    assert limit_chunks_per_document(hits, 0, 2) == hits[:2]
+
+
+def test_document_dedup_does_not_make_multi_chunk_evidence_weak(runtime):
+    from dataclasses import replace
+
+    runtime.knowledge.settings = replace(
+        runtime.knowledge.settings, max_chunks_per_document=1
+    )
+    class FakeEmbeddings:
+        enabled = True
+
+        def embed(self, texts):
+            return [[1.0, float("rag" in text.lower()), 0.5] for text in texts]
+
+    runtime.knowledge.embeddings = FakeEmbeddings()
+    document = runtime.database.add_document(
+        "alice", "one-source.md", "text/markdown",
+        [
+            {"content": "RAG 使用向量检索召回语义相关内容。", "section": "向量"},
+            {"content": "RAG 使用 BM25 召回精确关键词。", "section": "关键词"},
+        ],
+    )
+    runtime.knowledge.index_document("alice", document["id"])
+    result = runtime.knowledge.search("alice", "RAG 向量检索 BM25")
+    assert len(result.hits) == 1
+    assert result.weak is False
 
 
 def test_hybrid_retrieval_uses_both_paths_and_returns_diagnostics(runtime):
@@ -75,7 +114,8 @@ def test_hybrid_retrieval_uses_both_paths_and_returns_diagnostics(runtime):
     assert set(result.hits[0]["retrieval_paths"]) == {"keyword", "vector"}
     assert result.diagnostics["vector_count"] >= 1
     assert result.diagnostics["keyword_count"] >= 1
-    assert result.diagnostics["rrf_weights"] == {"vector": 0.1, "keyword": 1.0}
+    assert result.diagnostics["rrf_weights"] == {"vector": 0.03, "keyword": 1.0}
+    assert result.diagnostics["max_chunks_per_document"] == 0
 
 
 def test_fastembed_provider_is_lazy_and_returns_float_vectors(settings, monkeypatch):

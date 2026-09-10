@@ -33,9 +33,9 @@ def test_mixed_corpus_has_near_domain_and_public_domain_distractors():
         ROOT / "evals" / "rag" / "corpus" / "documents.json", "mixed"
     )
     names = {item["filename"] for item in documents}
-    assert len(documents) >= 50
-    assert any(name.startswith("botmux-zh-") for name in names)
-    assert any(name.startswith("literature-") for name in names)
+    assert len(documents) >= 25
+    assert any(name.startswith("near-tech-") for name in names)
+    assert any(name.startswith("public-domain-") for name in names)
 
 
 def test_retrieval_metric_definitions():

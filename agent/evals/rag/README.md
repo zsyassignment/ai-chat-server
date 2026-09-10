@@ -16,11 +16,11 @@
 ## 两种语料规模
 
 - `controlled`：10 篇目标技术短文、10 个 Chunk，用于快速单元回归。
-- `mixed`：10 篇目标文档 + 38 篇 BotMux 中文技术文档 + 3 部公版中文小说节选；
-  当前共 51 篇、约 34.6 万字符、1151 个 Chunk。来源见
+- `mixed`：10 篇目标文档 + 8 篇近邻技术文档 + 11 部跨领域公版文本；
+  当前共 29 篇、约 39.4 万字符、1186 个 Chunk。来源见
   [`corpus/SOURCES.md`](corpus/SOURCES.md)。
 
-混合语料同时包含同领域技术干扰和跨领域文学噪声，比原 10-Chunk 语料更接近真实知识库。
+混合语料同时包含同领域技术干扰和跨领域文本噪声，比原 10-Chunk 语料更接近真实知识库。
 
 ## 运行
 
@@ -36,7 +36,7 @@ Dense、BM25 与加权 Hybrid 对照：
 ```bash
 PYTHONPATH=backend .venv/bin/python -m evals.rag.runner \
   --corpus-profile mixed --split test --k 5 --retrieval-mode compare \
-  --vector-weight 0.1 --keyword-weight 1.0
+  --vector-weight 0.03 --keyword-weight 1.0
 ```
 
 默认在临时目录重建 SQLite/Qdrant 索引，不污染应用数据。报告包括 Hit@5、
@@ -49,7 +49,7 @@ Recall@5、Precision@5、MRR、NDCG@5、关键词覆盖率和延迟。负样本�
 ## 当前基线
 
 本地 `BAAI/bge-small-zh-v1.5`，Reranker 关闭；RRF 权重在开发集选择为
-`vector=0.1, keyword=1.0`。固定测试集结果保存在
+`vector=0.03, keyword=1.0`；文档级 Chunk 限额默认为关闭。固定测试集结果保存在
 [`baselines/mixed-test-k5.json`](baselines/mixed-test-k5.json)。
 
 测试集包含 80 题，其中 64 题可回答、16 题为负样本；检索指标仅对可回答题
@@ -57,15 +57,16 @@ Recall@5、Precision@5、MRR、NDCG@5、关键词覆盖率和延迟。负样本�
 
 | 模式 | Hit@5 | Recall@5 | MRR | NDCG@5 | 平均延迟 |
 |---|---:|---:|---:|---:|---:|
-| Dense | 64.06% | 53.39% | 53.57% | 48.43% | 304.10 ms |
-| BM25 | 82.81% | 79.69% | 75.00% | 73.72% | 4.77 ms |
-| Hybrid RRF | **84.38%** | **80.47%** | **76.82%** | **75.13%** | 308.95 ms |
+| Dense | 89.06% | 79.95% | 69.74% | 67.43% | 303.50 ms |
+| BM25 | 89.06% | 86.72% | 80.52% | 80.39% | 6.50 ms |
+| Hybrid RRF | **89.06%** | **86.72%** | **81.56%** | **81.36%** | 310.98 ms |
 
-开发集表明当前本地小模型在大量相近技术文本中更适合作为补召回信号，因此没有
-使用等权 RRF。锁定 `0.1:1.0` 后，Hybrid 在未参与调参的测试集上相较 BM25 的
-Hit@5、Recall@5、MRR、NDCG@5 均有小幅提升。Dense 的延迟包含本地 ONNX 查询编码；
-BM25 为 SQLite FTS5 查询。
+开发集表明当前本地小模型更适合作为补召回信号，因此没有使用等权 RRF。锁定
+`0.03:1.0` 后，Hybrid 在未参与调参的测试集上保持 BM25 的 Hit@5 与 Recall@5，
+同时提升 MRR 和 NDCG@5。文档去重先在 dev 集比较“不限/最多 2 个/最多 1 个”，
+三者召回相同；test 集排序指标略有下降，因此生产默认不启用，但保留配置项供长文档库调优。
+Dense 的延迟包含本地 ONNX 查询编码；BM25 为 SQLite FTS5 查询。
 
-三种检索模式在 16 道负样本上都会返回某些最近邻，因此 `negative_empty=0`。
+Dense 与 Hybrid 在 16 道负样本上都会返回某些最近邻，BM25 仅 1 题返回空结果。
 这证明“检索器返回候选”不能等同于“证据充分”，最终拒答应由 Agent 的证据评分和
 置信度闸门决定；本表不宣称端到端拒答准确率。

@@ -15,7 +15,7 @@ from typing import Any, Dict, List
 
 from app.core.config import Settings
 from app.rag.splitter import parse_document
-from app.rag.store import reciprocal_rank_fusion
+from app.rag.store import limit_chunks_per_document, reciprocal_rank_fusion
 from app.services.agent_service import AgentService
 from app.services.runtime import build_runtime
 from evals.rag.metrics.generation import answer_metrics
@@ -33,8 +33,10 @@ def main() -> None:
     parser.add_argument("--split", choices=["dev", "test", "all"], default="test")
     parser.add_argument("--k", type=int, default=5)
     parser.add_argument("--retrieval-mode", choices=[*MODES, "compare"], default="hybrid")
-    parser.add_argument("--vector-weight", type=float, default=0.1)
+    parser.add_argument("--vector-weight", type=float, default=0.03)
     parser.add_argument("--keyword-weight", type=float, default=1.0)
+    parser.add_argument("--max-chunks-per-document", type=int, default=0,
+                        help="0 disables document-level result deduplication")
     parser.add_argument("--end-to-end", action="store_true", help="also run Agent answer and citation/refusal metrics; hybrid mode only")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
@@ -44,6 +46,7 @@ def main() -> None:
         args.dataset, args.corpus, args.split, args.k, args.end_to_end,
         corpus_profile=args.corpus_profile, retrieval_mode=args.retrieval_mode,
         vector_weight=args.vector_weight, keyword_weight=args.keyword_weight,
+        max_chunks_per_document=args.max_chunks_per_document,
     )
     output = args.output or ROOT / "reports" / f"report-{int(time.time())}.json"
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -61,8 +64,9 @@ def run_benchmark(
     *,
     corpus_profile: str = "controlled",
     retrieval_mode: str = "hybrid",
-    vector_weight: float = 0.1,
+    vector_weight: float = 0.03,
     keyword_weight: float = 1.0,
+    max_chunks_per_document: int = 0,
 ) -> Dict[str, Any]:
     cases = [json.loads(line) for line in dataset.read_text(encoding="utf-8").splitlines() if line.strip()]
     if split != "all":
@@ -84,6 +88,7 @@ def run_benchmark(
                 for case in cases:
                     for mode, row in _evaluate_case_comparison(
                         runtime, case, k, vector_weight, keyword_weight,
+                        max_chunks_per_document,
                     ).items():
                         rows_by_mode[mode].append(row)
             else:
@@ -105,6 +110,7 @@ def run_benchmark(
         "corpus": corpus_stats,
         "retrieval_mode": retrieval_mode,
         "rrf_weights": {"vector": vector_weight, "keyword": keyword_weight},
+        "max_chunks_per_document": max_chunks_per_document,
         "total": len(cases),
         "split": split,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -191,27 +197,33 @@ def _evaluate_case(runtime, case: Dict[str, Any], k: int, end_to_end: bool, mode
 
 def _evaluate_case_comparison(
     runtime, case: Dict[str, Any], k: int,
-    vector_weight: float = 1.0, keyword_weight: float = 1.0,
+    vector_weight: float = 0.03, keyword_weight: float = 1.0,
+    max_chunks_per_document: int = 0,
 ) -> Dict[str, Dict[str, Any]]:
     query = _query_for_case(runtime, case)
+    candidate_k = max(
+        runtime.settings.vector_recall_k,
+        runtime.settings.keyword_recall_k,
+        k * 4 if max_chunks_per_document > 0 else k,
+    )
     started = time.perf_counter()
-    keyword_rows = runtime.database.keyword_search("eval", query, runtime.settings.keyword_recall_k)
+    keyword_rows = runtime.database.keyword_search("eval", query, candidate_k)
     keyword_ms = (time.perf_counter() - started) * 1000
     keyword_hits = [_row_to_hit(item, "keyword") for item in keyword_rows]
 
     started = time.perf_counter()
-    vector_hits = runtime.knowledge._vector_search("eval", query, runtime.settings.vector_recall_k)
+    vector_hits = runtime.knowledge._vector_search("eval", query, candidate_k)
     vector_ms = (time.perf_counter() - started) * 1000
 
     started = time.perf_counter()
-    hybrid_hits = reciprocal_rank_fusion(
+    hybrid_hits = limit_chunks_per_document(reciprocal_rank_fusion(
         {"vector": vector_hits, "keyword": keyword_hits}, rrf_k=runtime.settings.rrf_k,
         weights={"vector": vector_weight, "keyword": keyword_weight},
-    )[:k]
+    ), max_chunks_per_document, k)
     fusion_ms = (time.perf_counter() - started) * 1000
     return {
-        "dense": _score_case(case, query, vector_hits[:k], k, vector_ms, "dense"),
-        "bm25": _score_case(case, query, keyword_hits[:k], k, keyword_ms, "bm25"),
+        "dense": _score_case(case, query, limit_chunks_per_document(vector_hits, max_chunks_per_document, k), k, vector_ms, "dense"),
+        "bm25": _score_case(case, query, limit_chunks_per_document(keyword_hits, max_chunks_per_document, k), k, keyword_ms, "bm25"),
         "hybrid": _score_case(case, query, hybrid_hits, k, vector_ms + keyword_ms + fusion_ms, "hybrid"),
     }
 

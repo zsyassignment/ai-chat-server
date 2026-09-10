@@ -70,13 +70,18 @@ class KnowledgeStore:
 
     def search(self, user_id: str, query: str, limit: int | None = None) -> RetrievalResult:
         final_k = limit or self.settings.max_retrieval_results
-        keyword_rows = self.database.keyword_search(user_id, query, self.settings.keyword_recall_k)
+        candidate_k = max(
+            self.settings.vector_recall_k,
+            self.settings.keyword_recall_k,
+            final_k * 4 if self.settings.max_chunks_per_document > 0 else final_k,
+        )
+        keyword_rows = self.database.keyword_search(user_id, query, candidate_k)
         keyword_hits = [_public_hit(item, float(item["score"]), "keyword") for item in keyword_rows]
         vector_hits: List[Dict[str, Any]] = []
         vector_error = ""
         if self.semantic_enabled:
             try:
-                vector_hits = self._vector_search(user_id, query, self.settings.vector_recall_k)
+                vector_hits = self._vector_search(user_id, query, candidate_k)
             except Exception as exc:
                 vector_error = str(exc)
 
@@ -88,6 +93,9 @@ class KnowledgeStore:
                 "keyword": self.settings.rrf_keyword_weight,
             },
         )
+        diversified = limit_chunks_per_document(
+            fused, self.settings.max_chunks_per_document
+        )
         if not fused:
             return RetrievalResult([], "empty", weak=True, reason=vector_error or "no retrieval hits", diagnostics={
                 "vector_count": len(vector_hits), "keyword_count": len(keyword_hits), "fused_count": 0,
@@ -98,7 +106,7 @@ class KnowledgeStore:
 
         reranked, rerank_mode = self.reranker.rerank(
             query,
-            fused,
+            diversified,
             top_n=min(final_k, self.settings.reranker_top_n) if self.reranker.enabled else final_k,
         )
         active_paths = [name for name, hits in (("vector", vector_hits), ("keyword", keyword_hits)) if hits]
@@ -109,7 +117,9 @@ class KnowledgeStore:
             "vector_count": len(vector_hits),
             "keyword_count": len(keyword_hits),
             "fused_count": len(fused),
+            "diversified_count": len(diversified),
             "returned_count": len(reranked),
+            "max_chunks_per_document": self.settings.max_chunks_per_document,
             "rrf_k": self.settings.rrf_k,
             "rrf_weights": {
                 "vector": self.settings.rrf_vector_weight,
@@ -122,10 +132,11 @@ class KnowledgeStore:
             "vector_candidates": _candidate_summary(vector_hits),
             "keyword_candidates": _candidate_summary(keyword_hits),
         }
-        # One candidate is not enough evidence for a grounded answer, even if
-        # that candidate appeared in both recall paths. Let LangGraph rewrite
-        # once and retry rather than relying on a brittle floating threshold.
-        weak = len(reranked) < 2
+        # Judge whether retrieval found enough evidence before presentation
+        # diversity removes duplicate chunks from the same document. Otherwise
+        # one strong document with multiple independently recalled chunks would
+        # be misclassified as weak merely because max_chunks_per_document=1.
+        weak = len(fused) < 2
         reason = vector_error or self.reranker.last_error
         return RetrievalResult(reranked, mode, weak=weak, reason=reason, diagnostics=diagnostics)
 
@@ -232,6 +243,27 @@ def reciprocal_rank_fusion(
         fused.append(hit)
     fused.sort(key=lambda item: item["rrf_score"], reverse=True)
     return fused
+
+
+def limit_chunks_per_document(
+    hits: List[Dict[str, Any]],
+    max_per_document: int,
+    limit: int | None = None,
+) -> List[Dict[str, Any]]:
+    """Preserve rank order while preventing one long document from crowding out others."""
+    if max_per_document <= 0:
+        return hits[:limit] if limit is not None else list(hits)
+    counts: Dict[str, int] = {}
+    selected: List[Dict[str, Any]] = []
+    for hit in hits:
+        document_id = str(hit.get("document_id") or hit.get("filename") or hit.get("chunk_id"))
+        if counts.get(document_id, 0) >= max_per_document:
+            continue
+        counts[document_id] = counts.get(document_id, 0) + 1
+        selected.append(hit)
+        if limit is not None and len(selected) >= limit:
+            break
+    return selected
 
 
 def _public_hit(row: Dict[str, Any], score: float, path: str) -> Dict[str, Any]:
