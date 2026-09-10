@@ -41,6 +41,20 @@ def test_rrf_fuses_vector_and_keyword_without_raw_score_comparison():
     assert fused[0]["retrieval_paths"] == ["keyword", "vector"]
 
 
+def test_rrf_weights_can_make_keyword_precision_primary():
+    from app.rag.store import reciprocal_rank_fusion
+    base = lambda chunk_id, path: {
+        "chunk_id": chunk_id, "document_id": "d", "filename": "x.md",
+        "chunk_index": 0, "page": None, "section": "", "content": chunk_id,
+        "excerpt": chunk_id, "score": 1.0, "retrieval_paths": [path],
+    }
+    fused = reciprocal_rank_fusion({
+        "vector": [base("vector-only", "vector")],
+        "keyword": [base("keyword-only", "keyword")],
+    }, rrf_k=60, weights={"vector": 0.1, "keyword": 1.0})
+    assert [item["chunk_id"] for item in fused] == ["keyword-only", "vector-only"]
+
+
 def test_hybrid_retrieval_uses_both_paths_and_returns_diagnostics(runtime):
     from app.llm.client import EmbeddingClient
 
@@ -61,6 +75,7 @@ def test_hybrid_retrieval_uses_both_paths_and_returns_diagnostics(runtime):
     assert set(result.hits[0]["retrieval_paths"]) == {"keyword", "vector"}
     assert result.diagnostics["vector_count"] >= 1
     assert result.diagnostics["keyword_count"] >= 1
+    assert result.diagnostics["rrf_weights"] == {"vector": 0.1, "keyword": 1.0}
 
 
 def test_fastembed_provider_is_lazy_and_returns_float_vectors(settings, monkeypatch):

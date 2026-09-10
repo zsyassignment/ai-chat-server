@@ -83,6 +83,10 @@ class KnowledgeStore:
         fused = reciprocal_rank_fusion(
             {"vector": vector_hits, "keyword": keyword_hits},
             rrf_k=self.settings.rrf_k,
+            weights={
+                "vector": self.settings.rrf_vector_weight,
+                "keyword": self.settings.rrf_keyword_weight,
+            },
         )
         if not fused:
             return RetrievalResult([], "empty", weak=True, reason=vector_error or "no retrieval hits", diagnostics={
@@ -107,6 +111,10 @@ class KnowledgeStore:
             "fused_count": len(fused),
             "returned_count": len(reranked),
             "rrf_k": self.settings.rrf_k,
+            "rrf_weights": {
+                "vector": self.settings.rrf_vector_weight,
+                "keyword": self.settings.rrf_keyword_weight,
+            },
             "reranker": rerank_mode,
             "reranker_model": self.settings.reranker_model if self.reranker.enabled else None,
             "reranker_error": self.reranker.last_error,

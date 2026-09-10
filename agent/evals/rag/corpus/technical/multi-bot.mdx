@@ -1,0 +1,60 @@
+# 多机器人协作
+
+同一台机器上可运行多个飞书机器人，每个机器人可绑不同的 CLI。把它们拉进同一个群，就能让不同模型"赛博斗蛐蛐"。
+
+<video src="https://magic-builder.tos-cn-beijing.volces.com/uploads/1780421535360_multibot-video.aud.mp4" controls preload="metadata" style={{width:'100%',borderRadius:'8px'}}></video>
+
+## 路由规则
+
+- **群里只有你一个人 + 一个机器人**：无需 @，自动响应（默认 @ 策略下，需同时满足「1 个人 + 1 个 bot」；多人群即便只有一个 bot 也需 @）。
+- **群里有多个机器人 / 多个人**：用 `@mention` 指定接收方。
+- `@botA @botB /t <prompt>`：让**每个被 @ 的机器人**在这条消息上各自开一条独立会话，各跑各的（两个 bot 都以你这条 `/t` 消息为线程锚点、共用同一线程，但会话彼此独立）。
+
+## 让机器人互相认识
+
+botmux 会默认通过飞书群机器人列表自动发现当前群里的 bot。**跨部署**互相识别有两条路径，都进入**同一道团队信任闸、免 `/grant`**：一是 Dashboard「团队」面板的联邦（把别人的部署拉进同一团队、跨部署拉群）；二是中心平台的 team-sync（平台下发团队与群）。普通 `/group`、Dashboard「新建群」建的是本部署内的普通群，不走这两条、不带跨部署团队信任。
+
+协作时让模型优先查看：
+
+- `botmux bots list`：列出当前群可协作的 bot、能力标签、`openId`、`mentionable`。
+- 消息里的 `<available_bots>` 块：会随上下文提示哪些 bot 可被接力。
+
+之后 bot 在自己的会话里用 `botmux send --mention <对方 openId>` 显式 @ 对方即可触发接力。
+
+> 跨 bot 协作的硬性事实：**不 `--mention` 对方 bot，对方完全不会被触发**。
+
+## 团队维度：跨机发现 + 拉群 / 补人
+
+接入中心平台后，可以按**专长**发现**同团队、别人机器上**的 agent（哪怕还没进你的群），并把它们拉进群协作。三条命令、各管一摊：
+
+```bash
+# 发现：列同团队、已 opt-in 的 agent（本机在多团队时用 --team 指定）
+botmux bots list --scope team [--team <teamId>]
+
+# 建新群：把发现到的 agent（按 appId）+ 各自 owner 拉进一个平台代建的聚焦新群
+botmux create-group --team <teamId> --agent <appId> [--agent ...] [--name "群名"]
+
+# 往已有群补人：把 agent + 各自 owner 加进一个「你已在场」的群（恒带 owner）
+botmux bots invite --chat <chatId> --team <teamId> --agent <appId> [--agent ...]
+```
+
+`bots list --scope team` 返回的每个 agent 带：`appId`（拉群/补人就用它）、`name`、`specialties`（专长标签数组）、`mentionable`、`online`、`owner`、`machineId/machineName`。
+
+要点：
+
+- **opt-in 闸**：发现列表**只含已加入团队的 agent**——即它的 owner 在平台「管理机器人」把它显式加进了团队。查不到某个 agent，多半是对方 owner 还没加进来。
+- **`specialties` / `mentionable` / `online` 是 agent 自报**，仅供挑选参考，不是可信凭据。
+- **只认 appId、不需要 @**：正因为别人的 bot 进你群前你根本 @不到它，团队发现/拉群/补人全走 appId + 平台鉴权，天然绕开「看不见就点不着」。授权（团队成员校验、opt-in）全在平台，CLI 不做判断。
+- **`bots invite` 的目标群**要求：**你本人已在该群**，且**平台机器人在该群**。平台机器人不在时，botmux 会**自动用群里已有的本机 bot 把它拉进群、再自动重试补人**，通常无感；只有群设「加机器人需群主审批」或本机没有 bot 在该群时，才会提示你手动添加。
+
+**三条拉人路径别混**：`create-group --team`（跨 team 建新群）/ `bots invite`（往你已在场的群补同团队的人）/ 飞书 `/invite`（当前群内、同租户加 bot）。
+
+## 典型场景
+
+- **代码 review**：让 Claude Code 和 Codex 一起看同一个 MR，观点不同时互相挑刺。
+- **方案评审**：两个 AI 分别出方案，互相找漏洞。
+- **写审分离**：一个写，一个审，迭代收敛。
+
+配置极简：每个机器人一个飞书应用，拉进同一个群即可，进程完全隔离。
+
+> 相关：用 [角色与团队](/roles) 给每个 bot 设人设和能力标签；用 [一键建会话群](/group) 一句话拉多个 bot 进新群；用 [会话接力](/relay) 把会话搬到协作群。

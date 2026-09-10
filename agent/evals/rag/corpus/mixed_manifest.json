@@ -1,0 +1,21 @@
+{
+  "description": "Mixed-domain benchmark corpus: controlled Agent/RAG references, nearby BotMux technical documentation, and public-domain Chinese literature noise.",
+  "base_corpus": "documents.json",
+  "local_sources": [
+    {
+      "glob": "technical/*.md",
+      "filename_prefix": "botmux-zh-",
+      "license": "MIT; snapshot from botmux/docs-site/docs/zh, see botmux/LICENSE"
+    },
+    {
+      "glob": "technical/*.mdx",
+      "filename_prefix": "botmux-zh-",
+      "license": "MIT; snapshot from botmux/docs-site/docs/zh, see botmux/LICENSE"
+    },
+    {
+      "glob": "public_domain/*.txt",
+      "filename_prefix": "literature-",
+      "license": "Public domain source texts; see SOURCES.md"
+    }
+  ]
+}

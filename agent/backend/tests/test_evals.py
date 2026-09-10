@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT))
 
 from evals.rag.metrics.generation import answer_metrics
 from evals.rag.metrics.retrieval import retrieval_metrics
+from evals.rag.runner import _load_corpus
 
 
 def test_benchmark_has_100_balanced_cases_and_holdout_split():
@@ -23,6 +24,18 @@ def test_benchmark_has_100_balanced_cases_and_holdout_split():
     assert sum(row["split"] == "test" for row in rows) == 80
     assert all(row["relevant_documents"] for row in rows if row["answerable"])
     assert all(not row["relevant_documents"] for row in rows if not row["answerable"])
+    assert all(len(row["relevant_documents"]) >= 2 for row in rows if row["bucket"] == "multi_hop")
+    assert all(row.get("standalone_question") for row in rows if row["bucket"] == "context_dependent")
+
+
+def test_mixed_corpus_has_near_domain_and_public_domain_distractors():
+    documents = _load_corpus(
+        ROOT / "evals" / "rag" / "corpus" / "documents.json", "mixed"
+    )
+    names = {item["filename"] for item in documents}
+    assert len(documents) >= 50
+    assert any(name.startswith("botmux-zh-") for name in names)
+    assert any(name.startswith("literature-") for name in names)
 
 
 def test_retrieval_metric_definitions():

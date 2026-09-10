@@ -49,7 +49,7 @@ C++17 Gateway
 - 近期原文窗口 + 结构化滚动摘要，支持长对话和上下文补全
 - PDF、Markdown、TXT 文档上传；声明式 Skill 上传与工具白名单
 - FastMCP 工具服务、APScheduler 持久化提醒、SQLite 长期数据和运行轨迹
-- 100 题、5 类 RAG 评测集
+- 51 篇、1151 Chunk 混合语料上的 100 题、5 类 RAG 评测集
 
 Agent 的独立发布版（含 BotMux/飞书接入）位于：
 [`zsyassignment/easy-agent`](https://github.com/zsyassignment/easy-agent)。

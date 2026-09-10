@@ -49,6 +49,8 @@ class Settings:
     vector_recall_k: int = 10
     keyword_recall_k: int = 10
     rrf_k: int = 60
+    rrf_vector_weight: float = 0.1
+    rrf_keyword_weight: float = 1.0
     reranker_enabled: bool = False
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     reranker_top_n: int = 5
@@ -99,6 +101,8 @@ class Settings:
             vector_recall_k=max(1, min(int(os.getenv("VECTOR_RECALL_K", "10")), 100)),
             keyword_recall_k=max(1, min(int(os.getenv("KEYWORD_RECALL_K", "10")), 100)),
             rrf_k=max(1, int(os.getenv("RRF_K", "60"))),
+            rrf_vector_weight=max(0.0, float(os.getenv("RRF_VECTOR_WEIGHT", "0.1"))),
+            rrf_keyword_weight=max(0.0, float(os.getenv("RRF_KEYWORD_WEIGHT", "1.0"))),
             reranker_enabled=_bool_env("RERANKER_ENABLED", False),
             reranker_model=os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"),
             reranker_top_n=max(1, min(int(os.getenv("RERANKER_TOP_N", "5")), 20)),
